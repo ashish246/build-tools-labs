@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<project name="ApacAntTasks" default="build" basedir=".">
+	<description>
+		Build the APAC ant tasks and pack them into a jar.
+	</description>
+	
+	<property name="projectName" value="AntTasks" />
+	<property name="src.dir" location="src" />
+	<property name="build.dir" location="build/classes" />
+	<property name="dist.dir" location="${basedir}" />
+	<property name="lib.dir" value="lib" />
+	
+	<target name="init">
+		<mkdir dir="${build.dir}" />
+	</target>
+	
+	<!-- external libraries classpath, we don't need sources and javadoc -->
+	<path id="classpath">
+		<fileset dir="${basedir}/">
+			<include name="${lib.dir}/*.jar" />
+			<exclude name="${lib.dir}/*sources.jar"/>
+			<exclude name="${lib.dir}/*javadoc.jar"/>
+		</fileset>
+	</path>
+
+	<!-- To work with external libraries, need classpath to compile -->
+	<target name="compile" depends="init" description="compile the source ">
+		<javac includeantruntime="false" srcdir="${src.dir}" destdir="${build.dir}" classpathref="classpath" />
+		
+		<copy todir="${build.dir}">
+		   <fileset dir="${src.dir}" includes="**/*.properties"/>
+		</copy>
+	</target>
+	
+	<target name="build" depends="compile" description="compile the source and generate a jar for the class files ">
+		<delete file="apac_ant_tasks.jar" failonerror="false" />
+		<jar jarfile="apac_ant_tasks.jar" includes="**/*" basedir="build/classes" />
+	</target>
+	
+</project>
+

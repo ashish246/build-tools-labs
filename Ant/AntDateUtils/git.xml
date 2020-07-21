@@ -1,0 +1,258 @@
+<?xml version="1.0"?>
+<project name="build.latest">
+	<description>
+    	This build configuration defines different GIT actions.
+    </description>
+
+	<taskdef resource="net/sf/antcontrib/antlib.xml"/>
+
+	<taskdef name="xmltask" classname="com.oopsconsultancy.xmltask.ant.XmlTask" classpath="lib/xmltask-1.16.jar" />
+
+	<property name="jgit.version" value="3.5.0.201409260305-r" />
+
+	<!-- START: APAC Ant tasks -->
+	<taskdef resource="au/com/intershop/ant/ant-tasks.properties">
+		<classpath>
+			<pathelement location="lib/org.eclipse.jgit-${jgit.version}.jar" />
+			<pathelement location="lib/apac_ant_tasks.jar" />
+			<pathelement location="lib/jsch-0.1.51.jar" />
+		</classpath>
+	</taskdef>
+	<!-- END: APAC Ant tasks -->
+
+	<!--Load GIT ćredentials -->
+	<property file="git.properties" />
+
+	<target name="configure">
+		<!-- if -Dremote command line option is not set, fallback to 'origin' -->
+		<condition property="git.remote" value="${remote}" else="origin">
+			<isset property="remote" />
+		</condition>
+
+		<propertycopy name="git.username" from="git.${git.remote}.username" />
+		<propertycopy name="git.password" from="git.${git.remote}.password" />
+
+		<fail message="Property 'git.username' not set, please check git.properties in this folder.">
+			<condition>
+				<or>
+					<equals arg1="${git.username}" arg2="" />
+					<not>
+						<isset property="git.username" />
+					</not>
+				</or>
+			</condition>
+		</fail>
+
+		<fail message="Property 'git.password' not set, please check git.properties in this folder.">
+			<condition>
+				<or>
+					<equals arg1="${git.password}" arg2="" />
+					<not>
+						<isset property="git.password" />
+					</not>
+				</or>
+			</condition>
+		</fail>
+	</target>
+
+	<!--
+		GIT PULL
+	-->
+	<target name="pull" description="Run a 'git pull' the project repository and all source repositories." depends="configure">
+		<!-- First pull the project GIT repo -->
+		<git-findgitdir folder="${basedir}" property="git.gitDir" />
+
+		<echo>GIT pull for project GIT repository for '${git.gitDir}'</echo>
+		<git-pull repository="${git.gitDir}" username="${git.username}" password="${git.password}" remote="${git.remote}" />
+	</target>
+
+	<!--
+		GIT PUSH
+	-->
+	<target name="push" description="Run a 'git push' the project repository and all source repositories." depends="configure">
+
+		<!-- if -Ddryrun command line option is not set, fallback to 'false' -->
+		<condition property="git.dryrun" value="${dryrun}" else="false">
+			<isset property="dryrun" />
+		</condition>
+
+		<!-- if -Dremotebranch command line option is not set, fallback to '' -->
+		<condition property="git.remotebranch" value="${remotebranch}" else="">
+			<isset property="remotebranch" />
+		</condition>
+
+		<git-findgitdir folder="${basedir}" property="git.gitDir" />
+
+		<!-- First push the project GIT repo -->
+		<echo>GIT push for project GIT repository to remote '${git.remote}'</echo>
+		<git-push repository="${git.gitDir}" username="${git.username}" password="${git.password}" remote="${git.remote}" dryrun="${git.dryrun}" remotebranch="${git.remotebranch}" />
+
+	</target>
+
+	<!--
+		GIT CHECKOUT
+	-->
+	<target name="checkout" depends="configure">
+		<fail unless="branch">Checkout stopped. Please provide a branch name to checkout or create via command line option '-Dbranch=NAME'</fail>
+
+		<git-findgitdir folder="${basedir}" property="git.gitDir" />
+		<git-branchexists repository="${git.gitDir}" branch="${branch}" property="git.branchExists" />
+
+		<!-- If a branch does not exists local or remotely ask if it should be created -->
+		<if>
+			<equals arg1="${git.branchExists}" arg2="false" />
+			<then>
+				<input message="The branch '${branch}' does not exist. Create a new branch with that name?" validargs="y,n" addproperty="do.create" />
+				<condition property="do.abort">
+					<equals arg1="n" arg2="${do.create}" />
+				</condition>
+				<fail if="do.abort">GIT checkout aborted, no new branch has been created.</fail>
+
+				<!-- Create new local branch in project repository and source repositories -->
+				<git-checkout repository="${git.gitDir}" branch="${branch}" create="true" />
+			</then>
+			<else>
+				<!-- Switch to existing local or remote branch -->
+				<git-checkout repository="${git.gitDir}" branch="${branch}" create="false" />
+			</else>
+		</if>
+
+	</target>
+
+	<!--
+		GIT BRANCH
+	-->
+	<target name="branch" depends="configure">
+		<!-- Handle CLI options -->
+		<condition property="git.remove" value="${remove}" else="">
+			<isset property="remove" />
+		</condition>
+
+		<condition property="git.remoteremove" value="${remoteremove}" else="">
+			<isset property="remoteremove" />
+		</condition>
+
+		<condition property="git.remote" value="${remote}" else="origin">
+			<isset property="remote" />
+		</condition>
+
+		<if>
+			<and>
+				<equals arg1="${git.remove}" arg2="" casesensitive="false" trim="true" />
+				<equals arg1="${git.remoteremove}" arg2="" casesensitive="false" trim="true" />
+			</and>
+			<then>
+				<fail message="Neither -Dremove nor -Dremoteremove was specified, canceling action. See README.md for more information." />
+			</then>
+		</if>
+
+		<git-findgitdir folder="${basedir}" property="git.gitDir" />
+
+		<git-remove-branch repository="${git.gitDir}" username="${git.username}" password="${git.password}" remote="${git.remote}" remove="${git.remove}" remoteremove="${git.remoteremove}" />
+
+	</target>
+
+	<!--
+		GIT TAG
+	-->
+	<target name="tag" depends="configure">
+		<!-- Handle CLI options -->
+		<condition property="git.create" value="${create}" else="">
+			<isset property="create" />
+		</condition>
+
+		<condition property="git.delete" value="${delete}" else="">
+			<isset property="delete" />
+		</condition>
+
+		<if>
+			<and>
+				<equals arg1="${git.create}" arg2="" casesensitive="false" trim="true" />
+				<equals arg1="${git.delete}" arg2="" casesensitive="false" trim="true" />
+			</and>
+			<then>
+				<fail message="Neither -Dcreate nir -Ddelete parameter is provided or they are empty." />
+			</then>
+		</if>
+
+		<git-findgitdir folder="${basedir}" property="git.gitDir" />
+		<git-tag repository="${git.gitDir}" create="${git.create}" delete="${git.delete}" />
+	</target>
+	
+	<!--
+		A task for fetching all the GIT repo, revision and branch information for all the repositories
+	-->
+	<target name="revisioninfo" description="Run a 'git rev-parse' on the project repository and all source repositories.">
+		
+		<!-- Delete the old repository_revisioninfo.properies file before saving current revision data -->
+		<delete file="repository_revisioninfo.properties" />
+		
+		<!-- First retrieve the project GIT repo data -->
+		<git-findgitdir folder="${basedir}" property="git.gitDir" />
+
+		<echo>GIT retrieve revision info for repository ${basedir}</echo>
+		
+		<!-- Retrieve the last commit SHA key for this repo-->
+		<git command="rev-parse" dir="${git.gitDir}" failerror="true">
+			<args>
+				<arg value="HEAD" />
+			</args>
+			<gitOutputRedirector>
+				<redirector outputproperty="git.last.commit"/>
+			 </gitOutputRedirector>
+		</git>		
+		<!-- Retrieve the current checked out branch for this repo -->
+		<git command="rev-parse" dir="${git.gitDir}" failerror="true">
+			<args>
+				<arg value="--abbrev-ref" />
+				<arg value="HEAD" />
+			</args>
+			<gitOutputRedirector>
+				<redirector outputproperty="git.current.branch"/>
+			 </gitOutputRedirector>
+		</git>
+		<!-- Retrieve the remote repository URL for this repo -->
+		<git command="ls-remote" dir="${git.gitDir}" failerror="true">
+			<args>
+				<arg value="--get-url" />
+			</args>
+			<gitOutputRedirector>
+				<redirector outputproperty="git.current.repo.url"/>
+			 </gitOutputRedirector>
+		</git>
+		
+		<!-- Get the repository name from the remote repository URL -->
+		<propertyregex property="repo.name.ext" input="${git.current.repo.url}" regexp="[^/]+$" select="\0"/>
+		<propertyregex property="repo.name" input="${repo.name.ext}" regexp="[^.]+" select="\0"/>
+		
+		<var name="repo.counter" value="0"/>
+		<math result="repo.counter" operand1="${repo.counter}" operation="+" operand2="1" datatype="int"/>
+		
+		<!-- update the GIT data in the repository_revisioninfo.properties for this repo -->
+		<propertyfile file="repository_revisioninfo.properties">
+			<entry key="intershop.codebase.repo.count" default="00" operation="+" pattern="00" type="int"/>
+		  <entry  key="intershop.codebase.repo.${repo.counter}.url" value="${git.current.repo.url}"/>
+		  <entry  key="intershop.codebase.repo.${repo.counter}.name" value="${repo.name}"/>
+		  <entry  key="intershop.codebase.repo.${repo.counter}.branch" value="${git.current.branch}"/>
+		  <entry  key="intershop.codebase.repo.${repo.counter}.version" value="${git.last.commit}"/>
+		</propertyfile>
+	</target>
+	
+	<!-- Define a Macro Definition for executing GIT commands-->
+	<macrodef name="git">
+        <attribute name="command" />
+        <attribute name="options" default="" />
+        <attribute name="dir" default="" />
+        <attribute name="failerror" default="false" />
+        <element name="args" optional="true" />
+		<element name="gitOutputRedirector" optional="true"/>
+        <sequential>
+            <exec executable="git" dir="@{dir}" failonerror="@{failerror}">
+                <arg line="@{command} @{options}" />
+                <args />
+				<gitOutputRedirector/>
+            </exec>
+        </sequential>
+    </macrodef>
+
+</project>

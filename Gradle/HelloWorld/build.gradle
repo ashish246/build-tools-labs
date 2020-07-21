@@ -1,0 +1,25 @@
+apply plugin: 'java'
+apply plugin: 'checkstyle'
+apply plugin: 'findbugs'
+apply plugin: 'pmd'
+ 
+version = '1.0-SNAPSHOT'
+ 
+repositories {
+    mavenCentral()
+}
+ 
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.11'
+    testCompile group: 'org.hamcrest', name: 'hamcrest-all', version: '1.3'
+}
+
+defaultTasks 'beforHelloWorld'
+
+task helloWorld << {
+    println 'Welcome to JCG Gradle Tutorial'
+}
+task beforHelloWorld (dependsOn:helloWorld) << {
+    println 'Setting the previous configuration...'
+}
+
